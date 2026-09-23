@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -134,7 +135,36 @@
       text-align:center;font-size:22px;font-weight:1000;outline:none;
     }
     .num-input.short{width:56px}
+    .num-input[readonly]{cursor:pointer;caret-color:transparent}
+    .num-input:disabled{background:#f1f5f9;color:#64748b;cursor:default}
+    .num-input.keypad-active{
+      border-color:var(--accent);background:#eff6ff;box-shadow:0 0 0 3px rgba(37,99,235,.16);
+    }
     .answer-pair{display:flex;align-items:center;gap:5px;padding:6px 7px;border:1px solid #dbe3ef;border-radius:12px;background:#fff;font-size:13px;color:#475569;font-weight:950}
+
+    .keypad-wrap{
+      margin-top:10px;padding:9px;border:1px solid #dbe3ef;border-radius:14px;background:#f8fafc;
+    }
+    .keypad-hint{margin-bottom:7px;text-align:center;color:#64748b;font-size:10px;font-weight:900;line-height:1.35}
+    .keypad-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+    .keypad-key{
+      min-height:42px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#172033;
+      font-size:20px;font-weight:1000;cursor:pointer;touch-action:manipulation;
+    }
+    .keypad-key:active{transform:scale(.97);background:#eef4ff}
+    .keypad-key.function{font-size:12px;background:#eef2f7;color:#334155}
+    .keypad-key.next{background:var(--accent-soft);color:#1d4ed8;border-color:#bfdbfe}
+
+    .countdown-overlay{
+      position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+      padding:20px;background:rgba(15,23,42,.48);backdrop-filter:blur(4px);
+    }
+    .countdown-card{
+      width:min(340px,86vw);padding:28px 20px;border-radius:24px;background:#fff;text-align:center;
+      box-shadow:0 22px 60px rgba(15,23,42,.25);
+    }
+    .countdown-number{font-size:clamp(74px,20vw,128px);line-height:1;font-weight:1000;color:var(--accent);font-variant-numeric:tabular-nums}
+    .countdown-text{margin-top:9px;font-size:20px;font-weight:1000;color:#334155}
     .division-simple{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;min-height:68px;font-size:clamp(19px,2.4vw,28px);font-weight:1000}
     .division-expression{white-space:nowrap}
 
@@ -202,6 +232,8 @@
       .map-source,.map-target{min-height:58px;padding:6px 2px}
       .map-source strong,.map-target strong{font-size:21px}
       .num-input{width:58px;height:42px;font-size:20px}
+      .keypad-key{min-height:48px;font-size:22px}
+      .keypad-key.function{font-size:13px}
     }
   </style>
 </head>
@@ -247,11 +279,18 @@
       <div class="concept-note">
         <strong>가분수 → 대분수</strong>: 분자 ÷ 분모로 <b>몫과 나머지</b>를 구한 뒤, <b>몫 → 자연수</b>, <b>나머지 → 분자</b>, <b>나누는 수 → 분모</b>로 연결합니다.<br>
         <strong>대분수 → 가분수</strong>: <b>자연수 × 분모</b>를 계산하고, 그 값에 <b>분자</b>를 더해 새 분자를 만듭니다.<br>
-        어느 단계에서든 하나라도 틀리면 <b>그 즉시 새 문제</b>로 바뀝니다.
+        어느 단계에서든 하나라도 틀리면 <b>그 즉시 새 문제</b>로 바뀝니다.<br>
+        시작 버튼을 누르면 <b>3초 카운트다운</b> 뒤 시작하며, 숫자는 화면의 <b>숫자 키패드</b>로 입력합니다.
       </div>
     </section>
 
     <section id="game" class="game">
+      <div id="countdownOverlay" class="countdown-overlay" hidden aria-live="assertive" aria-label="3초 시작 카운트다운">
+        <div class="countdown-card">
+          <div id="countdownNumber" class="countdown-number">3</div>
+          <div class="countdown-text">준비!</div>
+        </div>
+      </div>
       <div class="game-toolbar">
         <div id="gameInfo" class="game-info"></div>
         <button id="backBtn" class="btn secondary" type="button">처음으로</button>
@@ -273,6 +312,9 @@
       const backBtn = document.getElementById('backBtn');
       const playersGrid = document.getElementById('playersGrid');
       const gameInfo = document.getElementById('gameInfo');
+      const countdownOverlay = document.getElementById('countdownOverlay');
+      const countdownNumber = document.getElementById('countdownNumber');
+      let countdownTimers = [];
 
       const appState = {
         mode:'mixed',
@@ -282,6 +324,62 @@
       };
 
       const rand = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
+
+      // 외부 음원 파일 없이 Web Audio API로 효과음을 만듭니다.
+      // 시작 버튼을 누르는 사용자 동작에서 AudioContext를 열어 모바일 브라우저에서도 재생되도록 합니다.
+      let audioContext = null;
+
+      function getAudioContext(){
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if(!AudioContextClass) return null;
+        if(!audioContext) audioContext = new AudioContextClass();
+        if(audioContext.state === 'suspended') audioContext.resume();
+        return audioContext;
+      }
+
+      function playTone(freq, offset=0, duration=0.12, type='sine', volume=0.06){
+        const ctx = getAudioContext();
+        if(!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const start = ctx.currentTime + offset;
+        const end = start + duration;
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, volume), start + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, end);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(end + 0.02);
+      }
+
+      function playStartSound(){
+        // 3초 동안 3-2-1 신호음을 들려주고, 3초가 끝나는 순간 시작음을 냅니다.
+        playTone(523.25, 0.00, 0.16, 'sine', 0.055);
+        playTone(523.25, 1.00, 0.16, 'sine', 0.055);
+        playTone(523.25, 2.00, 0.16, 'sine', 0.055);
+        playTone(659.25, 2.82, 0.16, 'sine', 0.06);
+        playTone(783.99, 2.92, 0.24, 'sine', 0.07);
+      }
+
+      function playCorrectSound(){
+        playTone(659.25, 0.00, 0.11, 'sine', 0.055);
+        playTone(880.00, 0.085, 0.16, 'sine', 0.065);
+      }
+
+      function playWrongSound(){
+        playTone(220.00, 0.00, 0.13, 'triangle', 0.05);
+        playTone(174.61, 0.10, 0.18, 'triangle', 0.055);
+      }
+
+      function playEndSound(){
+        playTone(523.25, 0.00, 0.14, 'sine', 0.055);
+        playTone(659.25, 0.10, 0.14, 'sine', 0.055);
+        playTone(783.99, 0.20, 0.14, 'sine', 0.06);
+        playTone(1046.50, 0.31, 0.32, 'sine', 0.07);
+      }
 
       function fracHTML(num,den){
         return `<span class="frac" aria-label="${den}분의 ${num}"><span class="num">${num}</span><span class="bar"></span><span class="den">${den}</span></span>`;
@@ -293,7 +391,21 @@
         return `<span class="mixed mixed-color" aria-label="${whole}와 ${den}분의 ${num}"><span class="mixed-whole">${whole}</span><span class="frac"><span class="num">${num}</span><span class="bar"></span><span class="den">${den}</span></span></span>`;
       }
       function inputHTML(role,cls=''){
-        return `<input class="num-input ${cls}" data-role="${role}" type="number" min="0" max="999" inputmode="numeric" autocomplete="off" aria-label="숫자 입력">`;
+        // readonly + inputmode=none: 화면 키보드는 띄우지 않고 아래 숫자 키패드로만 입력합니다.
+        return `<input class="num-input ${cls}" data-role="${role}" type="text" inputmode="none" readonly autocomplete="off" aria-label="숫자 입력칸">`;
+      }
+      function keypadHTML(){
+        const digits=[1,2,3,4,5,6,7,8,9];
+        return `
+          <div class="keypad-wrap" data-role="keypad" aria-label="화면 숫자 키패드">
+            <div class="keypad-hint">입력할 칸을 누른 뒤 숫자를 선택하세요.</div>
+            <div class="keypad-grid">
+              ${digits.map(d=>`<button class="keypad-key" data-action="keypad-digit" data-digit="${d}" type="button">${d}</button>`).join('')}
+              <button class="keypad-key function" data-action="keypad-backspace" type="button">⌫ 지우기</button>
+              <button class="keypad-key" data-action="keypad-digit" data-digit="0" type="button">0</button>
+              <button class="keypad-key function next" data-action="keypad-next" type="button">다음 칸</button>
+            </div>
+          </div>`;
       }
       function improperInputHTML(role,den,denClass=''){
         return `<span class="inline-frac-input">${inputHTML(role)}<span class="fbar"></span><span class="fixed-den ${denClass}">${den}</span></span>`;
@@ -346,6 +458,49 @@
         box.textContent=text;
         box.className='message';
         if(text) box.classList.add('show',kind);
+      }
+
+      function activeInputs(pane){
+        return [...pane.querySelectorAll('.step.active .num-input:not(:disabled)')];
+      }
+      function selectKeypadInput(pane,input){
+        if(!pane || !input || input.disabled || !activeInputs(pane).includes(input)) return;
+        pane.querySelectorAll('.num-input').forEach(el=>el.classList.remove('keypad-active'));
+        input.classList.add('keypad-active');
+        pane.dataset.activeInputRole=input.dataset.role || '';
+        try{input.focus({preventScroll:true});}catch{input.focus();}
+      }
+      function selectFirstInput(pane){
+        const first=activeInputs(pane)[0];
+        if(first) selectKeypadInput(pane,first);
+      }
+      function currentKeypadInput(pane){
+        const role=pane.dataset.activeInputRole;
+        let input=role?getRole(pane,role):null;
+        const inputs=activeInputs(pane);
+        if(!input || input.disabled || !inputs.includes(input)) input=inputs[0] || null;
+        if(input && !input.classList.contains('keypad-active')) selectKeypadInput(pane,input);
+        return input;
+      }
+      function keypadDigit(pane,digit){
+        const input=currentKeypadInput(pane);
+        if(!input) return;
+        let value=String(input.value || '');
+        if(value==='0') value='';
+        if(value.length>=3) return;
+        input.value=value+String(digit);
+      }
+      function keypadBackspace(pane){
+        const input=currentKeypadInput(pane);
+        if(!input) return;
+        input.value=String(input.value || '').slice(0,-1);
+      }
+      function keypadNext(pane){
+        const inputs=activeInputs(pane);
+        if(!inputs.length) return;
+        const current=currentKeypadInput(pane);
+        const at=Math.max(0,inputs.indexOf(current));
+        selectKeypadInput(pane,inputs[(at+1)%inputs.length]);
       }
 
       function mappingHTML(p){
@@ -430,6 +585,7 @@
                 </div>
                 <div class="step" data-role="step2" hidden></div>
               </div>
+              ${keypadHTML()}
               <div class="message ${notice?'show bad':''}" data-role="message" role="status">${notice}</div>
               <div class="player-actions">
                 <button class="btn secondary" data-action="hint" type="button">힌트</button>
@@ -458,6 +614,7 @@
                 <div class="step" data-role="step2" hidden></div>
                 <div class="step" data-role="step3" hidden></div>
               </div>
+              ${keypadHTML()}
               <div class="message ${notice?'show bad':''}" data-role="message" role="status">${notice}</div>
               <div class="player-actions">
                 <button class="btn secondary" data-action="hint" type="button">힌트</button>
@@ -467,10 +624,7 @@
         }
         content.innerHTML=inner;
         updatePlayerProgress(index);
-        requestAnimationFrame(()=>{
-          const first=pane.querySelector('.step.active input');
-          if(first) first.focus({preventScroll:true});
-        });
+        requestAnimationFrame(()=>selectFirstInput(pane));
       }
 
       function showImproperStep2(index){
@@ -480,6 +634,7 @@
         const s1=getRole(pane,'step1');
         const s2=getRole(pane,'step2');
         s1.classList.remove('active');s1.classList.add('done');
+        s1.querySelectorAll('input').forEach(el=>el.disabled=true);
         const b=s1.querySelector('button');if(b) b.disabled=true;
         s2.hidden=false;s2.classList.add('active');
         s2.innerHTML=`
@@ -492,7 +647,7 @@
           <button class="btn primary step-check" data-action="check-step2" type="button">2단계 확인</button>`;
         player.step=2;
         setMessage(pane,'몫·나머지·나누는 수가 어디로 가는지 보고 대분수를 완성하세요.','good');
-        requestAnimationFrame(()=>{const i=getRole(pane,'wholeInput');if(i)i.focus({preventScroll:true});});
+        requestAnimationFrame(()=>selectFirstInput(pane));
       }
 
       function showMixedStep2(index){
@@ -502,6 +657,7 @@
         const s1=getRole(pane,'step1');
         const s2=getRole(pane,'step2');
         s1.classList.remove('active');s1.classList.add('done');
+        s1.querySelectorAll('input').forEach(el=>el.disabled=true);
         const b=s1.querySelector('button');if(b)b.disabled=true;
         s2.hidden=false;s2.classList.add('active');
         s2.innerHTML=`
@@ -510,7 +666,7 @@
           <button class="btn primary step-check" data-action="check-step2" type="button">2단계 확인</button>`;
         player.step=2;
         setMessage(pane,'좋아요. 이제 곱한 값에 원래 분자를 더하세요.','good');
-        requestAnimationFrame(()=>{const i=getRole(pane,'sumInput');if(i)i.focus({preventScroll:true});});
+        requestAnimationFrame(()=>selectFirstInput(pane));
       }
 
       function showMixedStep3(index){
@@ -520,6 +676,7 @@
         const s2=getRole(pane,'step2');
         const s3=getRole(pane,'step3');
         s2.classList.remove('active');s2.classList.add('done');
+        s2.querySelectorAll('input').forEach(el=>el.disabled=true);
         const b=s2.querySelector('button');if(b)b.disabled=true;
         s3.hidden=false;s3.classList.add('active');
         s3.innerHTML=`
@@ -528,10 +685,11 @@
           <button class="btn primary step-check" data-action="check-step3" type="button">3단계 확인</button>`;
         player.step=3;
         setMessage(pane,'분모는 그대로 두고, 방금 계산한 수를 새 분자로 쓰세요.','good');
-        requestAnimationFrame(()=>{const i=getRole(pane,'improperNumInput');if(i)i.focus({preventScroll:true});});
+        requestAnimationFrame(()=>selectFirstInput(pane));
       }
 
       function replaceAfterWrong(index){
+        playWrongSound();
         renderPlayerProblem(index,'절대 실수하면 안됩니다!');
       }
 
@@ -550,6 +708,7 @@
               <p>${appState.goal}단계를 모두 성공했습니다.</p>
             </div>`;
           const bar=getRole(pane,'progressBar');if(bar)bar.style.width='100%';
+          setTimeout(playEndSound, 240);
           return;
         }
 
@@ -558,6 +717,8 @@
         const msg=getRole(pane,'message');
         if(msg){msg.textContent='정답이에요! 다음 문제로 넘어가세요. 👏';msg.className='message show good';}
         pane.querySelectorAll('input,button[data-action^="check-"]').forEach(el=>el.disabled=true);
+        const keypad=getRole(pane,'keypad');
+        if(keypad) keypad.hidden=true;
         const actions=pane.querySelector('.player-actions');
         if(actions){
           actions.innerHTML=`<button class="btn good" style="grid-column:1/-1" data-action="next-problem" type="button">다음 문제</button>`;
@@ -575,6 +736,7 @@
             const q=getNumber(pane,'quotientInput');
             const r=getNumber(pane,'remainderInput');
             if(Number.isNaN(q)||Number.isNaN(r) || q!==p.quotient || r!==p.remainder){replaceAfterWrong(index);return;}
+            playCorrectSound();
             showImproperStep2(index);
             return;
           }
@@ -582,6 +744,7 @@
             const w=getNumber(pane,'wholeInput');
             const n=getNumber(pane,'mixedNumInput');
             if(Number.isNaN(w)||Number.isNaN(n) || w!==p.quotient || n!==p.remainder){replaceAfterWrong(index);return;}
+            playCorrectSound();
             completeProblem(index);
           }
           return;
@@ -590,16 +753,19 @@
         if(step===1){
           const v=getNumber(pane,'productInput');
           if(Number.isNaN(v)||v!==p.product){replaceAfterWrong(index);return;}
+          playCorrectSound();
           showMixedStep2(index);return;
         }
         if(step===2){
           const v=getNumber(pane,'sumInput');
           if(Number.isNaN(v)||v!==p.numerator){replaceAfterWrong(index);return;}
+          playCorrectSound();
           showMixedStep3(index);return;
         }
         if(step===3){
           const v=getNumber(pane,'improperNumInput');
           if(Number.isNaN(v)||v!==p.numerator){replaceAfterWrong(index);return;}
+          playCorrectSound();
           completeProblem(index);
         }
       }
@@ -622,7 +788,15 @@
         setMessage(pane,text,'hint');
       }
 
+      function clearCountdown(){
+        countdownTimers.forEach(id=>clearTimeout(id));
+        countdownTimers=[];
+        countdownOverlay.hidden=true;
+      }
+
       function startGame(){
+        getAudioContext();
+        clearCountdown();
         appState.mode=modeSelect.value;
         appState.playerCount=Number(playerSelect.value);
         appState.goal=Number(goalSelect.value);
@@ -630,15 +804,28 @@
 
         startPanel.style.display='none';
         game.classList.add('show');
-        playersGrid.style.setProperty('--players',appState.playerCount);
-        playersGrid.dataset.count=String(appState.playerCount);
-        playersGrid.innerHTML=appState.players.map((_,i)=>playerShellHTML(i)).join('');
-        gameInfo.textContent=`${appState.playerCount}명 · 목표 ${appState.goal}단계`;
-        appState.players.forEach((_,i)=>renderPlayerProblem(i));
+        playersGrid.innerHTML='';
+        gameInfo.textContent=`${appState.playerCount}명 · 목표 ${appState.goal}단계 · 3초 뒤 시작`;
+        countdownNumber.textContent='3';
+        countdownOverlay.hidden=false;
+        playStartSound();
         window.scrollTo({top:0,behavior:'smooth'});
+
+        countdownTimers.push(setTimeout(()=>{countdownNumber.textContent='2';},1000));
+        countdownTimers.push(setTimeout(()=>{countdownNumber.textContent='1';},2000));
+        countdownTimers.push(setTimeout(()=>{
+          countdownOverlay.hidden=true;
+          playersGrid.style.setProperty('--players',appState.playerCount);
+          playersGrid.dataset.count=String(appState.playerCount);
+          playersGrid.innerHTML=appState.players.map((_,i)=>playerShellHTML(i)).join('');
+          gameInfo.textContent=`${appState.playerCount}명 · 목표 ${appState.goal}단계`;
+          appState.players.forEach((_,i)=>renderPlayerProblem(i));
+          countdownTimers=[];
+        },3000));
       }
 
       function backToStart(){
+        clearCountdown();
         game.classList.remove('show');
         startPanel.style.display='block';
         playersGrid.innerHTML='';
@@ -646,29 +833,28 @@
       }
 
       playersGrid.addEventListener('click',(e)=>{
-        const button=e.target.closest('button[data-action]');
-        if(!button) return;
-        const pane=button.closest('.player-pane');
+        const pane=e.target.closest('.player-pane');
         if(!pane) return;
         const index=Number(pane.dataset.player);
+
+        const input=e.target.closest('.num-input');
+        if(input && !input.disabled){
+          selectKeypadInput(pane,input);
+          return;
+        }
+
+        const button=e.target.closest('button[data-action]');
+        if(!button) return;
         const action=button.dataset.action;
-        if(action==='check-step1') handleCheck(index,1);
+        if(action==='keypad-digit') keypadDigit(pane,button.dataset.digit);
+        else if(action==='keypad-backspace') keypadBackspace(pane);
+        else if(action==='keypad-next') keypadNext(pane);
+        else if(action==='check-step1') handleCheck(index,1);
         else if(action==='check-step2') handleCheck(index,2);
         else if(action==='check-step3') handleCheck(index,3);
         else if(action==='hint') showHint(index);
         else if(action==='new-problem') renderPlayerProblem(index);
         else if(action==='next-problem') renderPlayerProblem(index);
-      });
-
-      playersGrid.addEventListener('keydown',(e)=>{
-        if(e.key!=='Enter') return;
-        const pane=e.target.closest('.player-pane');
-        if(!pane || e.target.tagName==='BUTTON') return;
-        e.preventDefault();
-        const index=Number(pane.dataset.player);
-        const player=appState.players[index];
-        if(!player || player.finished) return;
-        handleCheck(index,player.step);
       });
 
       startBtn.addEventListener('click',startGame);
