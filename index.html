@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>대분수 ↔ 가분수 개념 연습</title>
+  <style>
+    :root{
+      --bg:#f4f7fb;
+      --card:#ffffff;
+      --text:#172033;
+      --muted:#64748b;
+      --line:#d9e2ef;
+      --accent:#2563eb;
+      --accent-soft:#eaf2ff;
+      --good:#16a34a;
+      --good-soft:#ecfdf3;
+      --bad:#dc2626;
+      --bad-soft:#fff1f2;
+      --whole-color:#1d4ed8;
+      --numerator-color:#c2410c;
+      --denominator-color:#15803d;
+      --shadow:0 10px 28px rgba(15,23,42,.08);
+      --radius:20px;
+    }
+
+    *{box-sizing:border-box}
+    html{-webkit-text-size-adjust:100%}
+    body{
+      margin:0;
+      min-height:100%;
+      font-family:"Pretendard","Noto Sans KR","Apple SD Gothic Neo",system-ui,-apple-system,sans-serif;
+      color:var(--text);
+      background:linear-gradient(180deg,#edf4ff 0,#f8fafc 260px,#f4f7fb 100%);
+    }
+    button,select,input{font:inherit}
+    button{touch-action:manipulation}
+    input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+    input[type=number]{appearance:textfield;-moz-appearance:textfield}
+    [hidden]{display:none!important}
+
+    .app{width:100%;max-width:1920px;margin:0 auto;padding:16px 14px 34px}
+    .header{text-align:center;margin:4px 0 14px}
+    .header h1{margin:0;font-size:clamp(24px,4vw,38px);letter-spacing:-.04em}
+    .header p{margin:7px 0 0;color:var(--muted);font-size:clamp(13px,2vw,16px);line-height:1.5}
+
+    .panel{
+      max-width:780px;margin:0 auto;background:var(--card);border:1px solid var(--line);
+      border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;
+    }
+    .settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+    .field label{display:block;margin-bottom:7px;color:#475569;font-size:14px;font-weight:900}
+    select{
+      width:100%;height:48px;border:1px solid #cbd5e1;border-radius:13px;background:#fff;
+      padding:0 12px;color:var(--text);outline:none;
+    }
+    select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.13)}
+
+    .btn{
+      min-height:46px;border:0;border-radius:13px;padding:10px 14px;font-weight:950;cursor:pointer;
+      transition:transform .08s ease,opacity .15s ease;
+    }
+    .btn:active{transform:scale(.985)}
+    .btn:disabled{opacity:.42;cursor:not-allowed}
+    .btn.primary{background:var(--accent);color:#fff}
+    .btn.secondary{background:#eef2f7;color:#334155}
+    .btn.good{background:var(--good);color:#fff}
+    .btn.block{width:100%}
+
+    .concept-note{margin-top:14px;padding:13px 14px;border:1px solid var(--line);border-radius:15px;color:#475569;line-height:1.65;font-size:14px}
+    .concept-note strong{color:#1e293b}
+
+    .game{display:none}
+    .game.show{display:block}
+    .game-toolbar{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+      margin:0 0 12px;padding:10px 12px;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:15px;
+    }
+    .game-info{font-size:14px;font-weight:900;color:#475569}
+    .game-toolbar .btn{min-height:40px;padding:8px 12px}
+
+    .players-wrap{width:100%;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch}
+    .players-grid{
+      --players:1;
+      display:grid;
+      grid-template-columns:repeat(var(--players),minmax(0,1fr));
+      gap:10px;
+      align-items:start;
+      min-width:0;
+    }
+    .players-grid[data-count="1"]{max-width:760px;margin:0 auto}
+
+    .player-pane{
+      min-width:0;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden;
+    }
+    .player-head{padding:11px 12px;border-bottom:1px solid #edf1f6;background:#fbfdff}
+    .player-headline{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+    .player-name{font-size:16px;font-weight:1000;white-space:nowrap}
+    .stage-badge{font-size:12px;font-weight:950;color:#475569;background:#eef2f7;border-radius:999px;padding:6px 9px;white-space:nowrap}
+    .progress-track{height:9px;border-radius:999px;background:#e6edf6;overflow:hidden}
+    .progress-bar{height:100%;width:0;background:var(--accent);border-radius:inherit;transition:width .25s ease}
+
+    .problem-head{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;padding:11px 12px 9px;border-bottom:1px solid #edf1f6}
+    .type-title{font-size:14px;font-weight:1000}
+    .rule-chip{font-size:11px;font-weight:950;color:#1d4ed8;background:var(--accent-soft);border-radius:999px;padding:5px 7px}
+    .problem-body{padding:12px}
+    .question{
+      min-height:74px;display:flex;align-items:center;justify-content:center;gap:8px;
+      font-size:clamp(30px,3.2vw,48px);font-weight:1000;margin-bottom:10px;
+    }
+
+    .frac{display:inline-grid;grid-template-rows:auto 2px auto;min-width:1.35em;vertical-align:middle;line-height:1;text-align:center;font-size:.78em}
+    .frac .num,.frac .den{padding:.08em .18em}
+    .frac .bar{height:2px;background:currentColor;border-radius:2px}
+    .mixed{display:inline-flex;align-items:center;gap:.09em;white-space:nowrap}
+    .whole-color{color:var(--whole-color)!important}
+    .numerator-color{color:var(--numerator-color)!important}
+    .denominator-color{color:var(--denominator-color)!important}
+    .mixed-color .mixed-whole{color:var(--whole-color)}
+    .mixed-color .frac .num{color:var(--numerator-color)}
+    .mixed-color .frac .den{color:var(--denominator-color)}
+    .concept-legend{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin:-2px 0 10px}
+    .concept-legend span{padding:4px 7px;border-radius:999px;background:#f8fafc;border:1px solid #dbe3ef;font-size:10px;font-weight:1000}
+
+    .steps{display:grid;gap:9px}
+    .step{border:1px solid var(--line);border-radius:14px;padding:10px;background:#fbfdff}
+    .step.active{border-color:#a8c4fb;background:#f8fbff}
+    .step.done{border-color:#a7e6b8;background:var(--good-soft)}
+    .step-label{margin-bottom:8px;font-size:12px;color:var(--muted);font-weight:950;line-height:1.4}
+    .workline{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;min-height:50px;font-size:clamp(19px,2.4vw,28px);font-weight:900;text-align:center}
+
+    .num-input{
+      width:62px;height:44px;border:2px solid #cbd5e1;border-radius:10px;background:#fff;color:var(--text);
+      text-align:center;font-size:22px;font-weight:1000;outline:none;
+    }
+    .num-input.short{width:56px}
+    .answer-pair{display:flex;align-items:center;gap:5px;padding:6px 7px;border:1px solid #dbe3ef;border-radius:12px;background:#fff;font-size:13px;color:#475569;font-weight:950}
+    .division-simple{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;min-height:68px;font-size:clamp(19px,2.4vw,28px);font-weight:1000}
+    .division-expression{white-space:nowrap}
+
+    .step-check{margin-top:9px;width:100%}
+
+    .mapping-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:3px auto 10px}
+    .map-col{display:grid;grid-template-rows:auto 30px auto;align-items:center;text-align:center;min-width:0}
+    .map-source,.map-target{
+      min-height:62px;border-radius:12px;border:2px solid #dbe3ef;background:#fff;padding:7px 4px;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    }
+    .map-source{border-color:#93c5fd;background:#eff6ff}
+    .map-target{border-color:#86efac;background:#f0fdf4}
+    .map-name,.map-target span{font-size:10px;color:#64748b;font-weight:950;line-height:1.2}
+    .map-source strong,.map-target strong{font-size:clamp(20px,2.2vw,30px);line-height:1}
+    .map-arrow{font-size:26px;line-height:30px;font-weight:1000;color:#2563eb}
+    .mapping-summary{display:flex;justify-content:center;gap:5px;flex-wrap:wrap;margin-bottom:9px}
+    .summary-chip{padding:5px 7px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:10px;font-weight:950}
+
+    .inline-frac-input{display:inline-grid;grid-template-rows:42px 2px 30px;align-items:center;justify-items:center;min-width:62px;vertical-align:middle}
+    .inline-frac-input .num-input{height:40px;width:58px;font-size:20px}
+    .inline-frac-input .fbar{width:58px;height:2px;background:#1f2937}
+    .fixed-den{font-size:21px;font-weight:1000;line-height:28px}
+
+    .message{
+      min-height:40px;margin-top:9px;border-radius:11px;padding:8px 9px;display:flex;align-items:center;justify-content:center;
+      text-align:center;font-size:12px;font-weight:900;line-height:1.45;visibility:hidden;
+    }
+    .message.show{visibility:visible}
+    .message.good{background:var(--good-soft);color:#166534}
+    .message.bad{background:var(--bad-soft);color:#b91c1c}
+    .message.hint{background:#fff7ed;color:#9a3412}
+
+    .player-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
+    .player-actions .btn{min-height:40px;padding:8px 10px;font-size:12px}
+
+    .finish-pane{text-align:center;padding:28px 14px 30px}
+    .finish-pane .emoji{font-size:44px}
+    .finish-pane h2{margin:5px 0 6px;font-size:23px}
+    .finish-pane p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+
+    @media (max-width:1100px){
+      .settings{grid-template-columns:1fr}
+      .players-grid{
+        display:flex;
+        width:max-content;
+        max-width:none;
+        margin:0;
+        gap:10px;
+      }
+      .player-pane{flex:0 0 min(88vw,390px);width:min(88vw,390px)}
+      .players-grid[data-count="1"]{width:100%;max-width:760px;margin:0 auto}
+      .players-grid[data-count="1"] .player-pane{flex:1 1 auto;width:100%;max-width:none}
+    }
+
+    @media (max-width:520px){
+      .app{padding:9px 8px 24px}
+      .header{margin-bottom:10px}
+      .panel{padding:13px}
+      .game-toolbar{padding:8px 9px}
+      .player-pane{flex-basis:92vw;width:92vw}
+      .problem-body{padding:10px}
+      .question{min-height:64px;font-size:34px}
+      .mapping-board{gap:4px}
+      .map-source,.map-target{min-height:58px;padding:6px 2px}
+      .map-source strong,.map-target strong{font-size:21px}
+      .num-input{width:58px;height:42px;font-size:20px}
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <h1>대분수 ↔ 가분수 개념 연습</h1>
+      <p>몫·나머지·나누는 수가 대분수의 어느 자리로 가는지 확인하며 연습합니다.</p>
+    </header>
+
+    <section id="startPanel" class="panel">
+      <div class="settings">
+        <div class="field">
+          <label for="modeSelect">연습 종류</label>
+          <select id="modeSelect">
+            <option value="mixed">섞어서 연습</option>
+            <option value="improperToMixed">가분수 → 대분수</option>
+            <option value="mixedToImproper">대분수 → 가분수</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="playerSelect">인원</label>
+          <select id="playerSelect">
+            <option value="1" selected>1명</option>
+            <option value="2">2명</option>
+            <option value="3">3명</option>
+            <option value="4">4명</option>
+            <option value="5">5명</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="goalSelect">목표 단계</label>
+          <select id="goalSelect">
+            <option value="5">5단계</option>
+            <option value="10" selected>10단계</option>
+            <option value="15">15단계</option>
+            <option value="20">20단계</option>
+          </select>
+        </div>
+      </div>
+      <button id="startBtn" class="btn primary block" type="button">연습 시작</button>
+
+      <div class="concept-note">
+        <strong>가분수 → 대분수</strong>: 분자 ÷ 분모로 <b>몫과 나머지</b>를 구한 뒤, <b>몫 → 자연수</b>, <b>나머지 → 분자</b>, <b>나누는 수 → 분모</b>로 연결합니다.<br>
+        <strong>대분수 → 가분수</strong>: <b>자연수 × 분모</b>를 계산하고, 그 값에 <b>분자</b>를 더해 새 분자를 만듭니다.<br>
+        어느 단계에서든 하나라도 틀리면 <b>그 즉시 새 문제</b>로 바뀝니다.
+      </div>
+    </section>
+
+    <section id="game" class="game">
+      <div class="game-toolbar">
+        <div id="gameInfo" class="game-info"></div>
+        <button id="backBtn" class="btn secondary" type="button">처음으로</button>
+      </div>
+      <div class="players-wrap">
+        <div id="playersGrid" class="players-grid" data-count="1" style="--players:1"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const startPanel = document.getElementById('startPanel');
+      const game = document.getElementById('game');
+      const modeSelect = document.getElementById('modeSelect');
+      const playerSelect = document.getElementById('playerSelect');
+      const goalSelect = document.getElementById('goalSelect');
+      const startBtn = document.getElementById('startBtn');
+      const backBtn = document.getElementById('backBtn');
+      const playersGrid = document.getElementById('playersGrid');
+      const gameInfo = document.getElementById('gameInfo');
+
+      const appState = {
+        mode:'mixed',
+        goal:10,
+        playerCount:1,
+        players:[]
+      };
+
+      const rand = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
+
+      function fracHTML(num,den){
+        return `<span class="frac" aria-label="${den}분의 ${num}"><span class="num">${num}</span><span class="bar"></span><span class="den">${den}</span></span>`;
+      }
+      function mixedHTML(whole,num,den){
+        return `<span class="mixed"><span>${whole}</span>${fracHTML(num,den)}</span>`;
+      }
+      function mixedColorHTML(whole,num,den){
+        return `<span class="mixed mixed-color" aria-label="${whole}와 ${den}분의 ${num}"><span class="mixed-whole">${whole}</span><span class="frac"><span class="num">${num}</span><span class="bar"></span><span class="den">${den}</span></span></span>`;
+      }
+      function inputHTML(role,cls=''){
+        return `<input class="num-input ${cls}" data-role="${role}" type="number" min="0" max="999" inputmode="numeric" autocomplete="off" aria-label="숫자 입력">`;
+      }
+      function improperInputHTML(role,den,denClass=''){
+        return `<span class="inline-frac-input">${inputHTML(role)}<span class="fbar"></span><span class="fixed-den ${denClass}">${den}</span></span>`;
+      }
+      function problemKey(p){
+        return p.type === 'improperToMixed' ? `i-${p.numerator}-${p.den}` : `m-${p.whole}-${p.num}-${p.den}`;
+      }
+
+      function makeImproperProblem(){
+        let den,quotient,remainder,numerator;
+        do{
+          den=rand(2,9);
+          quotient=rand(1,15);
+          remainder=rand(1,den-1);
+          numerator=den*quotient+remainder;
+        }while(numerator<10 || numerator>99);
+        return {type:'improperToMixed',den,quotient,remainder,numerator};
+      }
+
+      function makeMixedProblem(){
+        const den=rand(2,9);
+        const whole=rand(2,15);
+        const num=rand(1,den-1);
+        const product=whole*den;
+        const numerator=product+num;
+        return {type:'mixedToImproper',den,whole,num,product,numerator};
+      }
+
+      function generateProblem(mode,previousKey=''){
+        let p=null;
+        for(let i=0;i<50;i++){
+          let type=mode;
+          if(type==='mixed') type=Math.random()<0.5?'improperToMixed':'mixedToImproper';
+          p=type==='improperToMixed'?makeImproperProblem():makeMixedProblem();
+          if(problemKey(p)!==previousKey) return p;
+        }
+        return p;
+      }
+
+      function getPane(index){return playersGrid.querySelector(`[data-player="${index}"]`)}
+      function getRole(pane,role){return pane.querySelector(`[data-role="${role}"]`)}
+      function getNumber(pane,role){
+        const el=getRole(pane,role);
+        if(!el || el.value.trim()==='') return NaN;
+        return Number(el.value);
+      }
+      function setMessage(pane,text='',kind=''){
+        const box=getRole(pane,'message');
+        if(!box) return;
+        box.textContent=text;
+        box.className='message';
+        if(text) box.classList.add('show',kind);
+      }
+
+      function mappingHTML(p){
+        return `
+          <div class="mapping-board" aria-label="몫과 나머지와 나누는 수가 대분수 자리로 가는 그림">
+            <div class="map-col">
+              <div class="map-source"><span class="map-name">몫</span><strong>${p.quotient}</strong></div>
+              <div class="map-arrow" aria-hidden="true">↓</div>
+              <div class="map-target"><span>대분수의</span><strong>자연수</strong></div>
+            </div>
+            <div class="map-col">
+              <div class="map-source"><span class="map-name">나머지</span><strong>${p.remainder}</strong></div>
+              <div class="map-arrow" aria-hidden="true">↓</div>
+              <div class="map-target"><span>대분수의</span><strong>분자</strong></div>
+            </div>
+            <div class="map-col">
+              <div class="map-source"><span class="map-name">나누는 수</span><strong>${p.den}</strong></div>
+              <div class="map-arrow" aria-hidden="true">↓</div>
+              <div class="map-target"><span>대분수의</span><strong>분모</strong></div>
+            </div>
+          </div>
+          <div class="mapping-summary">
+            <span class="summary-chip">몫 → 자연수</span>
+            <span class="summary-chip">나머지 → 분자</span>
+            <span class="summary-chip">나누는 수 → 분모</span>
+          </div>`;
+      }
+
+      function playerShellHTML(index){
+        return `
+          <section class="player-pane" data-player="${index}">
+            <div class="player-head">
+              <div class="player-headline">
+                <div class="player-name">${index+1}번</div>
+                <div class="stage-badge" data-role="stageBadge">1 / ${appState.goal}단계</div>
+              </div>
+              <div class="progress-track"><div class="progress-bar" data-role="progressBar"></div></div>
+            </div>
+            <div data-role="content"></div>
+          </section>`;
+      }
+
+      function updatePlayerProgress(index){
+        const player=appState.players[index];
+        const pane=getPane(index);
+        if(!pane) return;
+        const badge=getRole(pane,'stageBadge');
+        const bar=getRole(pane,'progressBar');
+        const shown=Math.min(player.correct+1,appState.goal);
+        if(badge) badge.textContent=player.correct>=appState.goal?`${appState.goal} / ${appState.goal}단계`:`${shown} / ${appState.goal}단계`;
+        if(bar) bar.style.width=`${Math.min(100,(player.correct/appState.goal)*100)}%`;
+      }
+
+      function renderPlayerProblem(index,notice=''){
+        const player=appState.players[index];
+        const previous=player.current?problemKey(player.current):'';
+        player.current=generateProblem(appState.mode,previous);
+        player.step=1;
+        player.finished=false;
+        const p=player.current;
+        const pane=getPane(index);
+        const content=getRole(pane,'content');
+
+        let inner='';
+        if(p.type==='improperToMixed'){
+          inner=`
+            <div class="problem-head">
+              <div class="type-title">가분수 → 대분수</div>
+              <div class="rule-chip">분자 ÷ 분모</div>
+            </div>
+            <div class="problem-body">
+              <div class="question">${fracHTML(p.numerator,p.den)} <span>=</span> <span>?</span></div>
+              <div class="steps">
+                <div class="step active" data-role="step1">
+                  <div class="step-label">1단계 · 나눗셈으로 몫과 나머지 구하기</div>
+                  <div class="division-simple">
+                    <span class="division-expression">${p.numerator} ÷ ${p.den} =</span>
+                    <label class="answer-pair"><span>몫</span>${inputHTML('quotientInput','short')}</label>
+                    <label class="answer-pair"><span>나머지</span>${inputHTML('remainderInput','short')}</label>
+                  </div>
+                  <button class="btn primary step-check" data-action="check-step1" type="button">1단계 확인</button>
+                </div>
+                <div class="step" data-role="step2" hidden></div>
+              </div>
+              <div class="message ${notice?'show bad':''}" data-role="message" role="status">${notice}</div>
+              <div class="player-actions">
+                <button class="btn secondary" data-action="hint" type="button">힌트</button>
+                <button class="btn secondary" data-action="new-problem" type="button">새 문제</button>
+              </div>
+            </div>`;
+        }else{
+          inner=`
+            <div class="problem-head">
+              <div class="type-title">대분수 → 가분수</div>
+              <div class="rule-chip">자연수 × 분모 + 분자</div>
+            </div>
+            <div class="problem-body">
+              <div class="question">${mixedColorHTML(p.whole,p.num,p.den)} <span>=</span> <span>?</span></div>
+              <div class="concept-legend" aria-label="색으로 구분한 대분수의 각 부분">
+                <span class="whole-color">자연수</span>
+                <span class="numerator-color">분자</span>
+                <span class="denominator-color">분모</span>
+              </div>
+              <div class="steps">
+                <div class="step active" data-role="step1">
+                  <div class="step-label">1단계 · 자연수와 분모 곱하기</div>
+                  <div class="workline"><span><span class="whole-color">${p.whole}</span> × <span class="denominator-color">${p.den}</span> =</span>${inputHTML('productInput')}</div>
+                  <button class="btn primary step-check" data-action="check-step1" type="button">1단계 확인</button>
+                </div>
+                <div class="step" data-role="step2" hidden></div>
+                <div class="step" data-role="step3" hidden></div>
+              </div>
+              <div class="message ${notice?'show bad':''}" data-role="message" role="status">${notice}</div>
+              <div class="player-actions">
+                <button class="btn secondary" data-action="hint" type="button">힌트</button>
+                <button class="btn secondary" data-action="new-problem" type="button">새 문제</button>
+              </div>
+            </div>`;
+        }
+        content.innerHTML=inner;
+        updatePlayerProgress(index);
+        requestAnimationFrame(()=>{
+          const first=pane.querySelector('.step.active input');
+          if(first) first.focus({preventScroll:true});
+        });
+      }
+
+      function showImproperStep2(index){
+        const player=appState.players[index];
+        const p=player.current;
+        const pane=getPane(index);
+        const s1=getRole(pane,'step1');
+        const s2=getRole(pane,'step2');
+        s1.classList.remove('active');s1.classList.add('done');
+        const b=s1.querySelector('button');if(b) b.disabled=true;
+        s2.hidden=false;s2.classList.add('active');
+        s2.innerHTML=`
+          <div class="step-label">2단계 · 몫·나머지·나누는 수를 대분수 자리로 옮기기</div>
+          ${mappingHTML(p)}
+          <div class="workline">
+            ${fracHTML(p.numerator,p.den)} <span>=</span>
+            <span class="mixed">${inputHTML('wholeInput','short')}${improperInputHTML('mixedNumInput',p.den)}</span>
+          </div>
+          <button class="btn primary step-check" data-action="check-step2" type="button">2단계 확인</button>`;
+        player.step=2;
+        setMessage(pane,'몫·나머지·나누는 수가 어디로 가는지 보고 대분수를 완성하세요.','good');
+        requestAnimationFrame(()=>{const i=getRole(pane,'wholeInput');if(i)i.focus({preventScroll:true});});
+      }
+
+      function showMixedStep2(index){
+        const player=appState.players[index];
+        const p=player.current;
+        const pane=getPane(index);
+        const s1=getRole(pane,'step1');
+        const s2=getRole(pane,'step2');
+        s1.classList.remove('active');s1.classList.add('done');
+        const b=s1.querySelector('button');if(b)b.disabled=true;
+        s2.hidden=false;s2.classList.add('active');
+        s2.innerHTML=`
+          <div class="step-label">2단계 · 곱한 값에 원래 분자 더하기</div>
+          <div class="workline"><span>${p.product} + <span class="numerator-color">${p.num}</span> =</span>${inputHTML('sumInput')}</div>
+          <button class="btn primary step-check" data-action="check-step2" type="button">2단계 확인</button>`;
+        player.step=2;
+        setMessage(pane,'좋아요. 이제 곱한 값에 원래 분자를 더하세요.','good');
+        requestAnimationFrame(()=>{const i=getRole(pane,'sumInput');if(i)i.focus({preventScroll:true});});
+      }
+
+      function showMixedStep3(index){
+        const player=appState.players[index];
+        const p=player.current;
+        const pane=getPane(index);
+        const s2=getRole(pane,'step2');
+        const s3=getRole(pane,'step3');
+        s2.classList.remove('active');s2.classList.add('done');
+        const b=s2.querySelector('button');if(b)b.disabled=true;
+        s3.hidden=false;s3.classList.add('active');
+        s3.innerHTML=`
+          <div class="step-label">3단계 · 계산한 수를 새 분자로 쓰기</div>
+          <div class="workline">${mixedColorHTML(p.whole,p.num,p.den)} <span>=</span>${improperInputHTML('improperNumInput',p.den,'denominator-color')}</div>
+          <button class="btn primary step-check" data-action="check-step3" type="button">3단계 확인</button>`;
+        player.step=3;
+        setMessage(pane,'분모는 그대로 두고, 방금 계산한 수를 새 분자로 쓰세요.','good');
+        requestAnimationFrame(()=>{const i=getRole(pane,'improperNumInput');if(i)i.focus({preventScroll:true});});
+      }
+
+      function replaceAfterWrong(index){
+        renderPlayerProblem(index,'절대 실수하면 안됩니다!');
+      }
+
+      function completeProblem(index){
+        const player=appState.players[index];
+        const pane=getPane(index);
+        player.correct+=1;
+        updatePlayerProgress(index);
+        if(player.correct>=appState.goal){
+          player.finished=true;
+          const content=getRole(pane,'content');
+          content.innerHTML=`
+            <div class="finish-pane">
+              <div class="emoji">🎉</div>
+              <h2>${index+1}번 완료!</h2>
+              <p>${appState.goal}단계를 모두 성공했습니다.</p>
+            </div>`;
+          const bar=getRole(pane,'progressBar');if(bar)bar.style.width='100%';
+          return;
+        }
+
+        const active=pane.querySelector('.step.active');
+        if(active){active.classList.remove('active');active.classList.add('done');}
+        const msg=getRole(pane,'message');
+        if(msg){msg.textContent='정답이에요! 다음 문제로 넘어가세요. 👏';msg.className='message show good';}
+        pane.querySelectorAll('input,button[data-action^="check-"]').forEach(el=>el.disabled=true);
+        const actions=pane.querySelector('.player-actions');
+        if(actions){
+          actions.innerHTML=`<button class="btn good" style="grid-column:1/-1" data-action="next-problem" type="button">다음 문제</button>`;
+        }
+      }
+
+      function handleCheck(index,step){
+        const player=appState.players[index];
+        if(!player || player.finished) return;
+        const pane=getPane(index);
+        const p=player.current;
+
+        if(p.type==='improperToMixed'){
+          if(step===1){
+            const q=getNumber(pane,'quotientInput');
+            const r=getNumber(pane,'remainderInput');
+            if(Number.isNaN(q)||Number.isNaN(r) || q!==p.quotient || r!==p.remainder){replaceAfterWrong(index);return;}
+            showImproperStep2(index);
+            return;
+          }
+          if(step===2){
+            const w=getNumber(pane,'wholeInput');
+            const n=getNumber(pane,'mixedNumInput');
+            if(Number.isNaN(w)||Number.isNaN(n) || w!==p.quotient || n!==p.remainder){replaceAfterWrong(index);return;}
+            completeProblem(index);
+          }
+          return;
+        }
+
+        if(step===1){
+          const v=getNumber(pane,'productInput');
+          if(Number.isNaN(v)||v!==p.product){replaceAfterWrong(index);return;}
+          showMixedStep2(index);return;
+        }
+        if(step===2){
+          const v=getNumber(pane,'sumInput');
+          if(Number.isNaN(v)||v!==p.numerator){replaceAfterWrong(index);return;}
+          showMixedStep3(index);return;
+        }
+        if(step===3){
+          const v=getNumber(pane,'improperNumInput');
+          if(Number.isNaN(v)||v!==p.numerator){replaceAfterWrong(index);return;}
+          completeProblem(index);
+        }
+      }
+
+      function showHint(index){
+        const player=appState.players[index];
+        if(!player || player.finished) return;
+        const pane=getPane(index);
+        const p=player.current;
+        let text='';
+        if(p.type==='improperToMixed'){
+          text=player.step===1
+            ? `분자 ${p.numerator}를 분모 ${p.den}로 나누어 몫과 나머지를 구하세요.`
+            : '화살표를 보세요. 몫은 자연수, 나머지는 분자, 나누는 수는 분모로 갑니다.';
+        }else{
+          if(player.step===1) text=`자연수 ${p.whole}와 분모 ${p.den}를 곱하세요.`;
+          else if(player.step===2) text=`앞에서 구한 ${p.product}에 원래 분자 ${p.num}를 더하세요.`;
+          else text='방금 계산한 수가 새 분자이고, 분모는 그대로입니다.';
+        }
+        setMessage(pane,text,'hint');
+      }
+
+      function startGame(){
+        appState.mode=modeSelect.value;
+        appState.playerCount=Number(playerSelect.value);
+        appState.goal=Number(goalSelect.value);
+        appState.players=Array.from({length:appState.playerCount},()=>({correct:0,current:null,step:1,finished:false}));
+
+        startPanel.style.display='none';
+        game.classList.add('show');
+        playersGrid.style.setProperty('--players',appState.playerCount);
+        playersGrid.dataset.count=String(appState.playerCount);
+        playersGrid.innerHTML=appState.players.map((_,i)=>playerShellHTML(i)).join('');
+        gameInfo.textContent=`${appState.playerCount}명 · 목표 ${appState.goal}단계`;
+        appState.players.forEach((_,i)=>renderPlayerProblem(i));
+        window.scrollTo({top:0,behavior:'smooth'});
+      }
+
+      function backToStart(){
+        game.classList.remove('show');
+        startPanel.style.display='block';
+        playersGrid.innerHTML='';
+        window.scrollTo({top:0,behavior:'smooth'});
+      }
+
+      playersGrid.addEventListener('click',(e)=>{
+        const button=e.target.closest('button[data-action]');
+        if(!button) return;
+        const pane=button.closest('.player-pane');
+        if(!pane) return;
+        const index=Number(pane.dataset.player);
+        const action=button.dataset.action;
+        if(action==='check-step1') handleCheck(index,1);
+        else if(action==='check-step2') handleCheck(index,2);
+        else if(action==='check-step3') handleCheck(index,3);
+        else if(action==='hint') showHint(index);
+        else if(action==='new-problem') renderPlayerProblem(index);
+        else if(action==='next-problem') renderPlayerProblem(index);
+      });
+
+      playersGrid.addEventListener('keydown',(e)=>{
+        if(e.key!=='Enter') return;
+        const pane=e.target.closest('.player-pane');
+        if(!pane || e.target.tagName==='BUTTON') return;
+        e.preventDefault();
+        const index=Number(pane.dataset.player);
+        const player=appState.players[index];
+        if(!player || player.finished) return;
+        handleCheck(index,player.step);
+      });
+
+      startBtn.addEventListener('click',startGame);
+      backBtn.addEventListener('click',backToStart);
+    })();
+  </script>
+</body>
+</html>
