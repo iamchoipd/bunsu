@@ -147,7 +147,9 @@
     .player-head{padding:11px 12px;border-bottom:1px solid #edf1f6;background:#fbfdff}
     .player-headline{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
     .player-name{font-size:16px;font-weight:1000;white-space:nowrap}
+    .player-status{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
     .stage-badge{font-size:12px;font-weight:950;color:#475569;background:#eef2f7;border-radius:999px;padding:6px 9px;white-space:nowrap}
+    .timer-badge{font-size:12px;font-weight:1000;color:#0f172a;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:6px 9px;white-space:nowrap;font-variant-numeric:tabular-nums}
     .progress-track{height:9px;border-radius:999px;background:#e6edf6;overflow:hidden}
     .progress-bar{height:100%;width:0;background:var(--accent);border-radius:inherit;transition:width .25s ease}
 
@@ -329,6 +331,7 @@
       <div class="concept-note">
         <strong>가분수 → 대분수</strong>: 분자 ÷ 분모로 <b>몫과 나머지</b>를 구한 뒤, <b>몫 → 자연수</b>, <b>나머지 → 분자</b>, <b>나누는 수 → 분모</b>로 연결합니다.<br>
         <strong>대분수 → 가분수</strong>: <b>자연수 × 분모</b>를 계산하고, 그 값에 <b>분자</b>를 더해 새 분자를 만듭니다.<br>
+        각 학생 화면의 <b>타이머는 3초 카운트다운이 끝난 순간 시작</b>하고, 목표 단계를 완료하면 각자 기록에서 멈춥니다.<br>
         어느 단계에서든 하나라도 틀리면 <b>그 즉시 새 문제</b>로 바뀝니다.<br>
         시작 버튼을 누르면 <b>3초 카운트다운</b> 뒤 시작하며, 숫자는 화면의 <b>숫자 키패드</b>로 입력합니다.
       </div>
@@ -365,6 +368,7 @@
       const countdownOverlay = document.getElementById('countdownOverlay');
       const countdownNumber = document.getElementById('countdownNumber');
       let countdownTimers = [];
+      let timerInterval = null;
 
       const appState = {
         mode:'mixed',
@@ -374,6 +378,47 @@
       };
 
       const rand = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
+
+
+      function formatElapsed(ms){
+        const totalSeconds=Math.max(0,Math.floor(ms/1000));
+        const minutes=Math.floor(totalSeconds/60);
+        const seconds=totalSeconds%60;
+        return `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+      }
+
+      function playerElapsedMs(player){
+        if(!player || !player.startedAt) return 0;
+        const end=player.finishedAt || Date.now();
+        return Math.max(0,end-player.startedAt);
+      }
+
+      function updateTimers(){
+        appState.players.forEach((player,index)=>{
+          const pane=getPane(index);
+          if(!pane) return;
+          const badge=getRole(pane,'timerBadge');
+          if(badge) badge.textContent=`⏱ ${formatElapsed(playerElapsedMs(player))}`;
+        });
+      }
+
+      function startTimers(){
+        if(timerInterval) clearInterval(timerInterval);
+        const startedAt=Date.now();
+        appState.players.forEach(player=>{
+          player.startedAt=startedAt;
+          player.finishedAt=null;
+        });
+        updateTimers();
+        timerInterval=setInterval(updateTimers,250);
+      }
+
+      function stopTimers(){
+        if(timerInterval){
+          clearInterval(timerInterval);
+          timerInterval=null;
+        }
+      }
 
       // 외부 음원 파일 없이 Web Audio API로 효과음을 만듭니다.
       // 시작 버튼을 누르는 사용자 동작에서 AudioContext를 열어 모바일 브라우저에서도 재생되도록 합니다.
@@ -585,7 +630,10 @@
             <div class="player-head">
               <div class="player-headline">
                 <div class="player-name">${index+1}번</div>
+              <div class="player-status">
+                <div class="timer-badge" data-role="timerBadge">⏱ 00:00</div>
                 <div class="stage-badge" data-role="stageBadge">1 / ${appState.goal}단계</div>
+              </div>
               </div>
               <div class="progress-track"><div class="progress-bar" data-role="progressBar"></div></div>
             </div>
@@ -751,15 +799,20 @@
         updatePlayerProgress(index);
         if(player.correct>=appState.goal){
           player.finished=true;
+          player.finishedAt=Date.now();
+          updateTimers();
+          const elapsed=formatElapsed(playerElapsedMs(player));
           const content=getRole(pane,'content');
           content.innerHTML=`
             <div class="finish-pane">
               <div class="emoji">🎉</div>
               <h2>${index+1}번 완료!</h2>
               <p>${appState.goal}단계를 모두 성공했습니다.</p>
+              <p><strong>⏱ 기록 ${elapsed}</strong></p>
             </div>`;
           const bar=getRole(pane,'progressBar');if(bar)bar.style.width='100%';
           setTimeout(playEndSound, 240);
+          if(appState.players.every(p=>p.finished)) stopTimers();
           return;
         }
 
@@ -846,12 +899,13 @@
       }
 
       function startGame(){
+        stopTimers();
         getAudioContext();
         clearCountdown();
         appState.mode=modeSelect.value;
         appState.playerCount=Number(playerSelect.value);
         appState.goal=Number(goalSelect.value);
-        appState.players=Array.from({length:appState.playerCount},()=>({correct:0,current:null,step:1,finished:false}));
+        appState.players=Array.from({length:appState.playerCount},()=>({correct:0,current:null,step:1,finished:false,startedAt:null,finishedAt:null}));
 
         window.scrollTo({top:0,behavior:'auto'});
         document.body.classList.add('game-running');
@@ -871,12 +925,14 @@
           playersGrid.innerHTML=appState.players.map((_,i)=>playerShellHTML(i)).join('');
           gameInfo.textContent=`${appState.playerCount}명 · 목표 ${appState.goal}단계`;
           appState.players.forEach((_,i)=>renderPlayerProblem(i));
+          startTimers();
           countdownTimers=[];
         },3000));
       }
 
       function backToStart(){
         clearCountdown();
+        stopTimers();
         document.body.classList.remove('game-running');
         game.classList.remove('show');
         startPanel.style.display='block';
